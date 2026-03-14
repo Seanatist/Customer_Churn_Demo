@@ -26,41 +26,37 @@ def load_artifacts():
     return model, encoders, feature_names
 
 
-def build_input_ui(encoders):
+def build_input_ui(encoders, feature_names):
     """
-    Build Streamlit widgets for all input features, using the
-    encoder classes to populate categorical choices.
+    Build Streamlit widgets for all input features. Uses encoder classes
+    for categorical columns; numeric columns (e.g. SeniorCitizen, tenure,
+    MonthlyCharges, TotalCharges) get number/select widgets.
     Returns a dict matching the feature names used in training.
     """
     st.sidebar.header("Customer profile")
+    input_data = {}
 
-    # Use encoder classes as choices for categorical columns
-    # This keeps UI options consistent with training data.
+    # Categorical: only for columns that exist in encoders
     def cat_input(col_name, label=None):
         encoder = encoders[col_name]
         options = list(encoder.classes_)
         label = label or col_name
         return st.sidebar.selectbox(label, options)
 
-    # Categorical inputs
-    gender = cat_input("gender", "Gender")
-    senior_citizen = cat_input("SeniorCitizen", "Senior Citizen")
-    partner = cat_input("Partner", "Partner")
-    dependents = cat_input("Dependents", "Dependents")
-    phone_service = cat_input("PhoneService", "Phone service")
-    multiple_lines = cat_input("MultipleLines", "Multiple lines")
-    internet_service = cat_input("InternetService", "Internet service")
-    online_security = cat_input("OnlineSecurity", "Online security")
-    online_backup = cat_input("OnlineBackup", "Online backup")
-    device_protection = cat_input("DeviceProtection", "Device protection")
-    tech_support = cat_input("TechSupport", "Tech support")
-    streaming_tv = cat_input("StreamingTV", "Streaming TV")
-    streaming_movies = cat_input("StreamingMovies", "Streaming movies")
-    contract = cat_input("Contract", "Contract type")
-    paperless_billing = cat_input("PaperlessBilling", "Paperless billing")
-    payment_method = cat_input("PaymentMethod", "Payment method")
+    for col in ["gender", "SeniorCitizen", "Partner", "Dependents", "PhoneService", "MultipleLines",
+                "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection",
+                "TechSupport", "StreamingTV", "StreamingMovies", "Contract",
+                "PaperlessBilling", "PaymentMethod"]:
+        if col in encoders:
+            input_data[col] = cat_input(col, col.replace("_", " ").title())
 
-    # Numeric inputs – keep sensible bounds and defaults
+    # SeniorCitizen: if numeric (0/1) in your data, it won't be in encoders
+    if "SeniorCitizen" in feature_names and "SeniorCitizen" not in input_data:
+        input_data["SeniorCitizen"] = st.sidebar.selectbox(
+            "Senior Citizen", [0, 1], format_func=lambda x: "No" if x == 0 else "Yes"
+        )
+
+    # Numeric inputs
     st.sidebar.header("Billing & tenure")
     tenure = st.sidebar.number_input("Tenure (months)", min_value=0, max_value=120, value=12, step=1)
     monthly_charges = st.sidebar.number_input(
@@ -74,31 +70,13 @@ def build_input_ui(encoders):
         "Total charges",
         min_value=0.0,
         max_value=10000.0,
-        value=70.0 * max(tenure, 1),
+        value=float(70.0 * max(tenure, 1)),
         step=10.0,
     )
 
-    input_data = {
-        "gender": gender,
-        "SeniorCitizen": senior_citizen,
-        "Partner": partner,
-        "Dependents": dependents,
-        "tenure": tenure,
-        "PhoneService": phone_service,
-        "MultipleLines": multiple_lines,
-        "InternetService": internet_service,
-        "OnlineSecurity": online_security,
-        "OnlineBackup": online_backup,
-        "DeviceProtection": device_protection,
-        "TechSupport": tech_support,
-        "StreamingTV": streaming_tv,
-        "StreamingMovies": streaming_movies,
-        "Contract": contract,
-        "PaperlessBilling": paperless_billing,
-        "PaymentMethod": payment_method,
-        "MonthlyCharges": monthly_charges,
-        "TotalCharges": total_charges,
-    }
+    input_data["tenure"] = tenure
+    input_data["MonthlyCharges"] = monthly_charges
+    input_data["TotalCharges"] = total_charges
 
     return input_data
 
@@ -151,7 +129,7 @@ def main():
         )
         return
 
-    input_data = build_input_ui(encoders)
+    input_data = build_input_ui(encoders, feature_names)
 
     if st.button("Predict churn"):
         X = preprocess_input(input_data, encoders, feature_names)
